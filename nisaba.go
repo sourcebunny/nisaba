@@ -22,6 +22,7 @@ type Config struct {
     Port        string `json:"port"`
     UseSSL      bool   `json:"use_ssl"`
     ValidateSSL bool   `json:"validate_ssl"`
+    UseContext  bool   `json:"use_context"`
     APIURL      string `json:"api_url"`
     APIKey      string `json:"api_key"`
     Channel     string `json:"channel"`
@@ -117,6 +118,7 @@ func (bot *Bot) callAPI(query string) string {
     payload := map[string]interface{}{
         "prompt": query,
         "stream": false,
+	"use_context": bot.Config.UseContext,
     }
 
     if systemPrompt != "" {
