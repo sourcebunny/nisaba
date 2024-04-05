@@ -95,12 +95,26 @@ type Message struct {
 
 func loadMessageHistory() []Message {
     var history []Message
-    file, err := os.ReadFile("history.txt")
-    if err != nil {
-        if !os.IsNotExist(err) {
-            log.Fatalf("Error reading message history: %v", err)
+    _, err := os.Stat("history.txt")
+
+    if os.IsNotExist(err) {
+        systemPromptContent := loadSystemPrompt()
+
+        if systemPromptContent != "" {
+            initialSystemMessage := Message{
+                Role:    "system",
+                Content: systemPromptContent,
+            }
+            history = append(history, initialSystemMessage)
+
+            saveMessageHistory(history)
         }
         return history
+    }
+
+    file, err := os.ReadFile("history.txt")
+    if err != nil {
+        log.Fatalf("Error reading message history: %v", err)
     }
     if err := json.Unmarshal(file, &history); err != nil {
         log.Fatalf("Error parsing message history: %v", err)
