@@ -74,6 +74,18 @@ func loadBlockedUsers() {
     }
 }
 
+func loadSystemPrompt() string {
+    fileName := "systemprompt.txt"
+    content, err := ioutil.ReadFile(fileName)
+    if err != nil {
+        if os.IsNotExist(err) {
+            return ""
+        }
+        log.Fatalf("Error reading system prompt file: %v", err)
+    }
+    return string(content)
+}
+
 func NewBot(config Config) *Bot {
     bot := &Bot{
         Config:      config,
@@ -100,9 +112,15 @@ func NewBot(config Config) *Bot {
 }
 
 func (bot *Bot) callAPI(query string) string {
+    systemPrompt := loadSystemPrompt()
+
     payload := map[string]interface{}{
         "prompt": query,
         "stream": false,
+    }
+
+    if systemPrompt != "" {
+        payload["system_prompt"] = systemPrompt
     }
 
     payloadBytes, err := json.Marshal(payload)
