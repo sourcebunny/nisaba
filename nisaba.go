@@ -185,6 +185,7 @@ func (bot *Bot) callAPI(query string) string {
         payload := map[string]interface{}{
             "messages": messagesPayload,
             "stream":   false,
+            "use_context": bot.Config.UseContext,
         }
 
         payloadBytes, err := json.Marshal(payload)
