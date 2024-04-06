@@ -157,7 +157,7 @@ func NewBot(config Config) *Bot {
     return bot
 }
 
-func (bot *Bot) callAPI(query string) string {
+func (bot *Bot) callAPI(query string, useContext bool) string {
     var responseContent string
 
     if bot.Config.APIMode == "query" {
@@ -165,12 +165,11 @@ func (bot *Bot) callAPI(query string) string {
         payload := map[string]interface{}{
             "prompt":      query,
             "stream":      false,
-            "use_context": bot.Config.UseContext,
+            "use_context": useContext,
         }
         if systemPrompt != "" {
             payload["system_prompt"] = systemPrompt
         }
-
     } else if bot.Config.APIMode == "chat" {
         newUserMessage := Message{Role: "user", Content: query}
         history := loadMessageHistory()
@@ -185,7 +184,7 @@ func (bot *Bot) callAPI(query string) string {
         payload := map[string]interface{}{
             "messages": messagesPayload,
             "stream":   false,
-            "use_context": bot.Config.UseContext,
+            "use_context": useContext,
         }
 
         payloadBytes, err := json.Marshal(payload)
@@ -255,17 +254,26 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 
     message := e.Message()
 
-    re := regexp.MustCompile(`(?i)^(` + regexp.QuoteMeta(bot.Config.Nickname) + `[:,]?\s?)`)
-    query := re.ReplaceAllString(strings.TrimSpace(message), "")
+    re := regexp.MustCompile(`(?i)^(` + regexp.QuoteMeta(bot.Config.Nickname) + `[:,]?\s?)(!search\s+)?(.*)`)
+    matches := re.FindStringSubmatch(strings.TrimSpace(message))
 
-    if strings.HasPrefix(strings.ToLower(message), strings.ToLower(bot.Config.Nickname)) {
+    if len(matches) > 0 {
         bot.IsAvailable = false
         user := e.Nick
+
+        command := matches[2]
+        query := matches[3]
+
+        useContext := bot.Config.UseContext
+
+        if command == "!search " {
+            useContext = true
+        }
 
         bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will consult my knowledge and be back with you shortly.", user))
 
         go func() {
-            response := bot.callAPI(query)
+            response := bot.callAPI(query, useContext)
             messages := splitMessage(response, bot.Config.MaxMessageSize)
 
             for i, msg := range messages {
