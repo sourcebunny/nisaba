@@ -254,39 +254,59 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 
     message := e.Message()
 
-    re := regexp.MustCompile(`(?i)^(` + regexp.QuoteMeta(bot.Config.Nickname) + `[:,]?\s?)(!search\s+)?(.*)`)
+    re := regexp.MustCompile(`(?i)^` + regexp.QuoteMeta(bot.Config.Nickname) + `[:,]?\s?(!\w+)?\s*(.*)`)
     matches := re.FindStringSubmatch(strings.TrimSpace(message))
 
     if len(matches) > 0 {
         bot.IsAvailable = false
         user := e.Nick
 
-        command := matches[2]
-        query := matches[3]
+        command := matches[1]
+        query := matches[2]
 
         useContext := bot.Config.UseContext
 
-        if command == "!search " {
+        switch command {
+        case "!search":
             useContext = true
-        }
-
-        bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will consult my knowledge and be back with you shortly.", user))
-
-        go func() {
-            response := bot.callAPI(query, useContext)
-            messages := splitMessage(response, bot.Config.MaxMessageSize)
-
-            for i, msg := range messages {
-                if i == 0 {
-                    bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: %s", user, msg))
-                } else {
-                    bot.IRCConnection.Privmsg(bot.Config.Channel, msg)
-                }
-                time.Sleep(1 * time.Second)
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will search through the archives and see what I can find.", user))
+            go func() {
+                response := bot.callAPI(query, useContext)
+                bot.sendMessage(user, response)
+                bot.IsAvailable = true
+            }()
+        case "!clear":
+            err := os.Remove("history.txt")
+            if err != nil {
+                bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I can't clear my recent memory. It may already be empty.", user))
+            } else {
+                bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My recent memory has been cleared.", user))
             }
-
             bot.IsAvailable = true
-        }()
+        default:
+            if query != "" {
+                bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will think about that and be back with you shortly.", user))
+                go func() {
+                    response := bot.callAPI(query, useContext)
+                    bot.sendMessage(user, response)
+                    bot.IsAvailable = true
+                }()
+            } else {
+                bot.IsAvailable = true
+            }
+        }
+    }
+}
+
+func (bot *Bot) sendMessage(user, response string) {
+    messages := splitMessage(response, bot.Config.MaxMessageSize)
+    for i, msg := range messages {
+        if i == 0 {
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: %s", user, msg))
+        } else {
+            bot.IRCConnection.Privmsg(bot.Config.Channel, msg)
+        }
+        time.Sleep(1 * time.Second)
     }
 }
 
