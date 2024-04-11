@@ -10,6 +10,7 @@ import (
     "log"
     "net/http"
     "os"
+    "path/filepath"
     "strings"
     "time"
     "bufio"
@@ -36,9 +37,26 @@ type Bot struct {
     IsAvailable   bool
 }
 
+type Message struct {
+    Role    string `json:"role"`
+    Content string `json:"content"`
+}
+
+var blockedUsers map[string]bool
+
+func getConfigFilePath(fileName string) string {
+    configDir := "config"
+    configPath := filepath.Join(configDir, fileName)
+    if _, err := os.Stat(configPath); err == nil {
+        return configPath
+    }
+    return fileName
+}
+
 func loadConfig() Config {
     var config Config
-    file, err := os.Open("config.json")
+    configPath := getConfigFilePath("config.json")
+    file, err := os.Open(configPath)
     if err != nil {
         log.Fatalf("Error opening config file: %v", err)
     }
@@ -52,12 +70,10 @@ func loadConfig() Config {
     return config
 }
 
-var blockedUsers map[string]bool
-
 func loadBlockedUsers() {
     blockedUsers = make(map[string]bool)
-    fileName := "blocklist.txt"
-    file, err := os.Open(fileName)
+    filePath := getConfigFilePath("blocklist.txt")
+    file, err := os.Open(filePath)
     if err != nil {
         if !os.IsNotExist(err) {
             log.Printf("Error opening block list file: %v", err)
@@ -77,8 +93,8 @@ func loadBlockedUsers() {
 }
 
 func loadSystemPrompt() string {
-    fileName := "systemprompt.txt"
-    content, err := ioutil.ReadFile(fileName)
+    filePath := getConfigFilePath("systemprompt.txt")
+    content, err := ioutil.ReadFile(filePath)
     if err != nil {
         if os.IsNotExist(err) {
             return ""
@@ -88,31 +104,22 @@ func loadSystemPrompt() string {
     return string(content)
 }
 
-type Message struct {
-    Role    string `json:"role"`
-    Content string `json:"content"`
-}
-
 func loadMessageHistory() []Message {
     var history []Message
-    _, err := os.Stat("history.txt")
+    filePath := getConfigFilePath("history.txt")
 
+    _, err := os.Stat(filePath)
     if os.IsNotExist(err) {
         systemPromptContent := loadSystemPrompt()
-
         if systemPromptContent != "" {
-            initialSystemMessage := Message{
-                Role:    "system",
-                Content: systemPromptContent,
-            }
+            initialSystemMessage := Message{Role: "system", Content: systemPromptContent}
             history = append(history, initialSystemMessage)
-
             saveMessageHistory(history)
         }
         return history
     }
 
-    file, err := os.ReadFile("history.txt")
+    file, err := ioutil.ReadFile(filePath)
     if err != nil {
         log.Fatalf("Error reading message history: %v", err)
     }
@@ -123,11 +130,12 @@ func loadMessageHistory() []Message {
 }
 
 func saveMessageHistory(history []Message) {
+    filePath := getConfigFilePath("history.txt")
     file, err := json.MarshalIndent(history, "", "  ")
     if err != nil {
         log.Fatalf("Error encoding message history: %v", err)
     }
-    if err := os.WriteFile("history.txt", file, 0644); err != nil {
+    if err := ioutil.WriteFile(filePath, file, 0644); err != nil {
         log.Fatalf("Error writing message history: %v", err)
     }
 }
