@@ -23,6 +23,7 @@ type Config struct {
     Port        string `json:"port"`
     UseSSL      bool   `json:"use_ssl"`
     ValidateSSL bool   `json:"validate_ssl"`
+    Commands    bool   `json:"commands"`
     APIURL      string `json:"api_url"`
     APIKey      string `json:"api_key"`
     APIMode     string `json:"api_mode"`
@@ -278,6 +279,12 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 
         command := matches[1]
         query := matches[2]
+
+        if !bot.Config.Commands && command != "" {
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Commands are currently disabled.", user))
+            bot.IsAvailable = true
+            return
+        }
 
         switch command {
         case "!clear":
