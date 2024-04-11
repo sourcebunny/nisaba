@@ -283,6 +283,16 @@ func (bot *Bot) handleMessage(e *irc.Event) {
                 bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My recent memory has been cleared.", user))
             }
             bot.IsAvailable = true
+        case "!system":
+            newSystemMessage := Message{
+                Role:    "system",
+                Content: query,
+            }
+            history := loadMessageHistory()
+            history = append(history, newSystemMessage)
+            saveMessageHistory(history)
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My system instructions have been updated.", user))
+            bot.IsAvailable = true
         default:
             if query != "" {
                 bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will think about that and be back with you shortly.", user))
