@@ -23,7 +23,6 @@ type Config struct {
     Port        string `json:"port"`
     UseSSL      bool   `json:"use_ssl"`
     ValidateSSL bool   `json:"validate_ssl"`
-    UseContext  bool   `json:"use_context"`
     APIURL      string `json:"api_url"`
     APIKey      string `json:"api_key"`
     APIMode     string `json:"api_mode"`
@@ -106,31 +105,40 @@ func loadSystemPrompt() string {
 
 func loadMessageHistory() []Message {
     var history []Message
-    filePath := getConfigFilePath("history.txt")
+    filePath := filepath.Join("config", "history.txt")
+    if _, err := os.Stat(filePath); os.IsNotExist(err) {
+        if _, err := os.Stat("config"); os.IsNotExist(err) {
+            filePath = "history.txt"
+        }
 
-    _, err := os.Stat(filePath)
-    if os.IsNotExist(err) {
         systemPromptContent := loadSystemPrompt()
         if systemPromptContent != "" {
             initialSystemMessage := Message{Role: "system", Content: systemPromptContent}
             history = append(history, initialSystemMessage)
-            saveMessageHistory(history)
         }
+        saveMessageHistory(history)
         return history
     }
 
-    file, err := ioutil.ReadFile(filePath)
+    fileContent, err := ioutil.ReadFile(filePath)
     if err != nil {
         log.Fatalf("Error reading message history: %v", err)
     }
-    if err := json.Unmarshal(file, &history); err != nil {
+    if err := json.Unmarshal(fileContent, &history); err != nil {
         log.Fatalf("Error parsing message history: %v", err)
     }
     return history
 }
 
 func saveMessageHistory(history []Message) {
-    filePath := getConfigFilePath("history.txt")
+    configPath := "config"
+    if _, err := os.Stat(configPath); os.IsNotExist(err) {
+        if err := os.Mkdir(configPath, 0755); err != nil {
+            log.Fatalf("Failed to create config directory: %v", err)
+        }
+    }
+
+    filePath := filepath.Join(configPath, "history.txt")
     file, err := json.MarshalIndent(history, "", "  ")
     if err != nil {
         log.Fatalf("Error encoding message history: %v", err)
@@ -165,15 +173,14 @@ func NewBot(config Config) *Bot {
     return bot
 }
 
-func (bot *Bot) callAPI(query string, useContext bool) string {
+func (bot *Bot) callAPI(query string) string {
     var responseContent string
 
     if bot.Config.APIMode == "query" {
         systemPrompt := loadSystemPrompt()
         payload := map[string]interface{}{
-            "prompt":      query,
-            "stream":      false,
-            "use_context": useContext,
+            "prompt": query,
+            "stream": false,
         }
         if systemPrompt != "" {
             payload["system_prompt"] = systemPrompt
@@ -192,7 +199,6 @@ func (bot *Bot) callAPI(query string, useContext bool) string {
         payload := map[string]interface{}{
             "messages": messagesPayload,
             "stream":   false,
-            "use_context": useContext,
         }
 
         payloadBytes, err := json.Marshal(payload)
@@ -243,6 +249,7 @@ func (bot *Bot) callAPI(query string, useContext bool) string {
         if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
             responseContent = response.Choices[0].Message.Content
 
+            // Append the response from the assistant to the history.
             history = append(history, Message{Role: "assistant", Content: responseContent})
             saveMessageHistory(history)
             return responseContent
@@ -272,19 +279,9 @@ func (bot *Bot) handleMessage(e *irc.Event) {
         command := matches[1]
         query := matches[2]
 
-        useContext := bot.Config.UseContext
-
         switch command {
-        case "!search":
-            useContext = true
-            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will search through the archives and see what I can find.", user))
-            go func() {
-                response := bot.callAPI(query, useContext)
-                bot.sendMessage(user, response)
-                bot.IsAvailable = true
-            }()
         case "!clear":
-            err := os.Remove("history.txt")
+            err := os.Remove(getConfigFilePath("history.txt"))
             if err != nil {
                 bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I can't clear my recent memory. It may already be empty.", user))
             } else {
@@ -305,7 +302,7 @@ func (bot *Bot) handleMessage(e *irc.Event) {
             if query != "" {
                 bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will think about that and be back with you shortly.", user))
                 go func() {
-                    response := bot.callAPI(query, useContext)
+                    response := bot.callAPI(query)
                     bot.sendMessage(user, response)
                     bot.IsAvailable = true
                 }()
