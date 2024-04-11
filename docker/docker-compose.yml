@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  nisaba:
+    build: .
+    volumes:
+      - ./model.gguf:/data/model.gguf
+      - ./config:/app/config
+    ports:
+      - "8080:8080"
