@@ -4,5 +4,5 @@ services:
   nisaba:
     build: .
     volumes:
-      - ./model.gguf:/data/model.gguf
+      - ./model.gguf:/app/model.gguf
       - ./config:/app/config
