@@ -28,7 +28,7 @@ type Config struct {
     APIKey      string `json:"api_key"`
     APIMode     string `json:"api_mode"`
     Channel     string `json:"channel"`
-    MaxMessageSize int `json:"max_message_size"`
+    MessageSize int    `json:"message_size"`
 }
 
 type Bot struct {
@@ -250,7 +250,6 @@ func (bot *Bot) callAPI(query string) string {
         if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
             responseContent = response.Choices[0].Message.Content
 
-            // Append the response from the assistant to the history.
             history = append(history, Message{Role: "assistant", Content: responseContent})
             saveMessageHistory(history)
             return responseContent
@@ -321,7 +320,7 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 }
 
 func (bot *Bot) sendMessage(user, response string) {
-    messages := splitMessage(response, bot.Config.MaxMessageSize)
+    messages := splitMessage(response, bot.Config.MessageSize)
     for i, msg := range messages {
         if i == 0 {
             bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: %s", user, msg))
