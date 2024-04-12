@@ -30,8 +30,9 @@ type Config struct {
     Channel        string  `json:"channel"`
     MessageSize    int     `json:"message_size"`
     Commands       bool    `json:"commands"`
+}
 
-    // Optional numerical, boolean, and string parameters
+type Options struct {
     Temperature       *float64 `json:"temperature,omitempty"`
     TopK              *int     `json:"top_k,omitempty"`
     TopP              *float64 `json:"top_p,omitempty"`
@@ -59,6 +60,7 @@ type Config struct {
 
 type Bot struct {
     Config        Config
+    Options       *Options
     IRCConnection *irc.Connection
     IsAvailable   bool
 }
@@ -94,6 +96,22 @@ func loadConfig() Config {
     }
 
     return config
+}
+
+func loadOptions(fileName string) (*Options, error) {
+    filePath := getConfigFilePath(fileName)
+    file, err := os.Open(filePath)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    var opts Options
+    decoder := json.NewDecoder(file)
+    if err := decoder.Decode(&opts); err != nil {
+        return nil, err
+    }
+    return &opts, nil
 }
 
 func loadBlockedUsers() {
@@ -201,8 +219,8 @@ func NewBot(config Config) *Bot {
 }
 
 func (bot *Bot) callAPI(query string) string {
-    var payload map[string]interface{}
     var responseContent string
+    var payload map[string]interface{}
     var history []Message
 
     // Use "query" for "/completion" endpoint
@@ -211,34 +229,36 @@ func (bot *Bot) callAPI(query string) string {
             "prompt": query,
             "stream": false,
         }
-
     // Use "chat" for "/v1/chat/completions" endpoint
     } else if bot.Config.APIMode == "chat" {
-        history = loadMessageHistory()
+        history := loadMessageHistory()
         newUserMessage := Message{Role: "user", Content: query}
         history = append(history, newUserMessage)
         saveMessageHistory(history)
 
         messagesPayload := make([]map[string]interface{}, len(history))
         for i, msg := range history {
-            messagesPayload[i] = map[string]interface{}{"role": msg.Role, "content": msg.Content}
+            messagesPayload[i] = map[string]interface{}{
+                "role": msg.Role,
+                "content": msg.Content,
+            }
         }
 
         payload = map[string]interface{}{
             "messages": messagesPayload,
-            "stream":   false,
+            "stream": false,
         }
     }
 
-    // Add optional api parameters if they are set
-    val := reflect.ValueOf(bot.Config)
-    for _, fieldName := range []string{"Temperature", "TopK", "TopP", "MinP", "NPredict", "NKeep", "TfsZ", "TypicalP",
-                                       "RepeatPenalty", "RepeatLastN", "PresencePenalty", "FrequencyPenalty", "Mirostat",
-                                       "MirostatTau", "MirostatEta", "Seed", "NProbs", "SlotID", "PenalizeNL", "IgnoreEOS",
-                                       "CachePrompt", "PenaltyPrompt", "SystemPrompt"} {
-        fieldVal := val.FieldByName(fieldName)
-        if fieldVal.IsValid() && !fieldVal.IsNil() {
-            payload[strings.ToLower(fieldName)] = fieldVal.Elem().Interface()
+    // Add optional parameters from the Options struct if they are set
+    if bot.Options != nil {
+        val := reflect.ValueOf(*bot.Options)
+        typ := val.Type()
+        for i := 0; i < val.NumField(); i++ {
+            field := val.Field(i)
+            if !field.IsNil() {
+                payload[strings.ToLower(typ.Field(i).Name)] = field.Elem().Interface()
+            }
         }
     }
 
@@ -268,7 +288,7 @@ func (bot *Bot) callAPI(query string) string {
     }
     defer resp.Body.Close()
 
-    // Parsing the response
+    // Reading the response from the API
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
         log.Printf("Error reading response body: %v", err)
@@ -277,6 +297,7 @@ func (bot *Bot) callAPI(query string) string {
 
     log.Printf("Received response: %s\n", string(body))
 
+    // Parsing the response
     var response struct {
         Choices []struct {
             Message struct {
@@ -292,8 +313,8 @@ func (bot *Bot) callAPI(query string) string {
     if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
         responseContent = response.Choices[0].Message.Content
 
-        // Append the response from the assistant to the history if in "chat" mode
         if bot.Config.APIMode == "chat" {
+            // Append the assistant's response to the message history
             history = append(history, Message{Role: "assistant", Content: responseContent})
             saveMessageHistory(history)
         }
@@ -311,54 +332,72 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 
     message := e.Message()
 
-    re := regexp.MustCompile(`(?i)^` + regexp.QuoteMeta(bot.Config.Nickname) + `[:,]?\s?(!\w+)?\s*(.*)`)
+    // Check if the message starts with the bot's nickname
+    re := regexp.MustCompile(`(?i)^` + regexp.QuoteMeta(bot.Config.Nickname) + `[:,]?\s?(.*)`)
     matches := re.FindStringSubmatch(strings.TrimSpace(message))
 
-    if len(matches) > 0 {
+    if len(matches) > 1 {
         bot.IsAvailable = false
         user := e.Nick
+        entireMessage := matches[1]
 
-        command := matches[1]
-        query := matches[2]
+        // Split to check for commands
+        parts := strings.Fields(entireMessage)
+        if len(parts) == 0 {
+            bot.IsAvailable = true
+            return
+        }
 
-        if !bot.Config.Commands && command != "" {
+        firstWord, restOfMessage := parts[0], strings.Join(parts[1:], " ")
+
+        if !bot.Config.Commands && strings.HasPrefix(firstWord, "!") {
             bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Commands are currently disabled.", user))
             bot.IsAvailable = true
             return
         }
 
-        switch command {
-        case "!clear":
-            err := os.Remove(getConfigFilePath("history.txt"))
-            if err != nil {
-                bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I can't clear my recent memory. It may already be empty.", user))
-            } else {
-                bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My recent memory has been cleared.", user))
-            }
-            bot.IsAvailable = true
-        case "!system":
-            newSystemMessage := Message{
-                Role:    "system",
-                Content: query,
-            }
-            history := loadMessageHistory()
-            history = append(history, newSystemMessage)
-            saveMessageHistory(history)
-            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My system instructions have been updated.", user))
-            bot.IsAvailable = true
+        switch firstWord {
+        case "!clear", "!system", "!options":
+            handleCommands(bot, firstWord, restOfMessage, user)
         default:
-            if query != "" {
-                bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will think about that and be back with you shortly.", user))
-                go func() {
-                    response := bot.callAPI(query)
-                    bot.sendMessage(user, response)
-                    bot.IsAvailable = true
-                }()
-            } else {
+            // Handle as a normal message if no command is detected
+            query := entireMessage
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will think about that and be back with you shortly.", user))
+            go func() {
+                response := bot.callAPI(query)
+                bot.sendMessage(user, response)
                 bot.IsAvailable = true
-            }
+            }()
         }
     }
+}
+
+func handleCommands(bot *Bot, command, query, user string) {
+    switch command {
+    case "!clear":
+        err := os.Remove(getConfigFilePath("history.txt"))
+        if err != nil {
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I can't clear my recent memory. It may already be empty.", user))
+        } else {
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My recent memory has been cleared.", user))
+        }
+    case "!system":
+        newSystemMessage := Message{Role: "system", Content: query}
+        history := loadMessageHistory()
+        history = append(history, newSystemMessage)
+        saveMessageHistory(history)
+        bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My system instructions have been updated.", user))
+    case "!options":
+        optionsFile := fmt.Sprintf("options.%s.json", query)
+        newOptions, err := loadOptions(optionsFile)
+        if err != nil {
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Failed to load options from '%s'.", user, optionsFile))
+        } else {
+            bot.Options = newOptions
+            bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Options loaded successfully from '%s'.", user, optionsFile))
+        }
+    }
+    bot.IsAvailable = true
 }
 
 func (bot *Bot) sendMessage(user, response string) {
@@ -400,7 +439,16 @@ func splitMessage(response string, maxSize int) []string {
 func main() {
     loadBlockedUsers()
     config := loadConfig()
+
+    defaultOptions, err := loadOptions("options.json")
+    if err != nil {
+        log.Printf("No default options loaded: %v", err)
+    } else {
+        log.Println("Default options loaded successfully.")
+    }
+
     bot := NewBot(config)
+    bot.Options = defaultOptions
 
     if err := bot.IRCConnection.Connect(fmt.Sprintf("%s:%s", config.Server, config.Port)); err != nil {
 		log.Fatalf("Failed to connect: %v", err)
