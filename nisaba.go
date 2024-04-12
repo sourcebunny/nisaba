@@ -15,20 +15,46 @@ import (
     "time"
     "bufio"
     "regexp"
+    "reflect"
 )
 
 type Config struct {
-    Nickname    string `json:"nickname"`
-    Server      string `json:"server"`
-    Port        string `json:"port"`
-    UseSSL      bool   `json:"use_ssl"`
-    ValidateSSL bool   `json:"validate_ssl"`
-    Commands    bool   `json:"commands"`
-    APIURL      string `json:"api_url"`
-    APIKey      string `json:"api_key"`
-    APIMode     string `json:"api_mode"`
-    Channel     string `json:"channel"`
-    MessageSize int    `json:"message_size"`
+    Nickname       string  `json:"nickname"`
+    Server         string  `json:"server"`
+    Port           string  `json:"port"`
+    UseSSL         bool    `json:"use_ssl"`
+    ValidateSSL    bool    `json:"validate_ssl"`
+    APIURL         string  `json:"api_url"`
+    APIKey         string  `json:"api_key"`
+    APIMode        string  `json:"api_mode"`
+    Channel        string  `json:"channel"`
+    MessageSize    int     `json:"message_size"`
+    Commands       bool    `json:"commands"`
+
+    // Optional numerical, boolean, and string parameters
+    Temperature       *float64 `json:"temperature,omitempty"`
+    TopK              *int     `json:"top_k,omitempty"`
+    TopP              *float64 `json:"top_p,omitempty"`
+    MinP              *float64 `json:"min_p,omitempty"`
+    NPredict          *int     `json:"n_predict,omitempty"`
+    NKeep             *int     `json:"n_keep,omitempty"`
+    TfsZ              *float64 `json:"tfs_z,omitempty"`
+    TypicalP          *float64 `json:"typical_p,omitempty"`
+    RepeatPenalty     *float64 `json:"repeat_penalty,omitempty"`
+    RepeatLastN       *int     `json:"repeat_last_n,omitempty"`
+    PresencePenalty   *float64 `json:"presence_penalty,omitempty"`
+    FrequencyPenalty  *float64 `json:"frequency_penalty,omitempty"`
+    Mirostat          *int     `json:"mirostat,omitempty"`
+    MirostatTau       *float64 `json:"mirostat_tau,omitempty"`
+    MirostatEta       *float64 `json:"mirostat_eta,omitempty"`
+    Seed              *int     `json:"seed,omitempty"`
+    NProbs            *int     `json:"n_probs,omitempty"`
+    SlotID            *int     `json:"slot_id,omitempty"`
+    PenalizeNL        *bool    `json:"penalize_nl,omitempty"`
+    IgnoreEOS         *bool    `json:"ignore_eos,omitempty"`
+    CachePrompt       *bool    `json:"cache_prompt,omitempty"`
+    PenaltyPrompt     *string  `json:"penalty_prompt,omitempty"`
+    SystemPrompt      *string  `json:"system_prompt,omitempty"`
 }
 
 type Bot struct {
@@ -181,13 +207,9 @@ func (bot *Bot) callAPI(query string) string {
 
     // Use "query" for "/completion" endpoint
     if bot.Config.APIMode == "query" {
-        systemPrompt := loadSystemPrompt()
         payload = map[string]interface{}{
             "prompt": query,
             "stream": false,
-        }
-        if systemPrompt != "" {
-            payload["system_prompt"] = systemPrompt
         }
 
     // Use "chat" for "/v1/chat/completions" endpoint
@@ -205,6 +227,18 @@ func (bot *Bot) callAPI(query string) string {
         payload = map[string]interface{}{
             "messages": messagesPayload,
             "stream":   false,
+        }
+    }
+
+    // Add optional api parameters if they are set
+    val := reflect.ValueOf(bot.Config)
+    for _, fieldName := range []string{"Temperature", "TopK", "TopP", "MinP", "NPredict", "NKeep", "TfsZ", "TypicalP",
+                                       "RepeatPenalty", "RepeatLastN", "PresencePenalty", "FrequencyPenalty", "Mirostat",
+                                       "MirostatTau", "MirostatEta", "Seed", "NProbs", "SlotID", "PenalizeNL", "IgnoreEOS",
+                                       "CachePrompt", "PenaltyPrompt", "SystemPrompt"} {
+        fieldVal := val.FieldByName(fieldName)
+        if fieldVal.IsValid() && !fieldVal.IsNil() {
+            payload[strings.ToLower(fieldName)] = fieldVal.Elem().Interface()
         }
     }
 
@@ -234,7 +268,7 @@ func (bot *Bot) callAPI(query string) string {
     }
     defer resp.Body.Close()
 
-    // Reading the response from the API
+    // Parsing the response
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
         log.Printf("Error reading response body: %v", err)
@@ -243,7 +277,6 @@ func (bot *Bot) callAPI(query string) string {
 
     log.Printf("Received response: %s\n", string(body))
 
-    // Parsing the response
     var response struct {
         Choices []struct {
             Message struct {
