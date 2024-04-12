@@ -175,20 +175,25 @@ func NewBot(config Config) *Bot {
 }
 
 func (bot *Bot) callAPI(query string) string {
+    var payload map[string]interface{}
     var responseContent string
+    var history []Message
 
+    // Use "query" for "/completion" endpoint
     if bot.Config.APIMode == "query" {
         systemPrompt := loadSystemPrompt()
-        payload := map[string]interface{}{
+        payload = map[string]interface{}{
             "prompt": query,
             "stream": false,
         }
         if systemPrompt != "" {
             payload["system_prompt"] = systemPrompt
         }
+
+    // Use "chat" for "/v1/chat/completions" endpoint
     } else if bot.Config.APIMode == "chat" {
+        history = loadMessageHistory()
         newUserMessage := Message{Role: "user", Content: query}
-        history := loadMessageHistory()
         history = append(history, newUserMessage)
         saveMessageHistory(history)
 
@@ -197,69 +202,73 @@ func (bot *Bot) callAPI(query string) string {
             messagesPayload[i] = map[string]interface{}{"role": msg.Role, "content": msg.Content}
         }
 
-        payload := map[string]interface{}{
+        payload = map[string]interface{}{
             "messages": messagesPayload,
             "stream":   false,
         }
-
-        payloadBytes, err := json.Marshal(payload)
-        if err != nil {
-            log.Printf("Error encoding payload to JSON: %v", err)
-            return "Error encoding request payload."
-        }
-
-        log.Printf("Sending payload: %s\n", string(payloadBytes))
-
-        req, err := http.NewRequest("POST", bot.Config.APIURL, bytes.NewBuffer(payloadBytes))
-        req.Header.Set("Content-Type", "application/json")
-        req.Header.Set("Authorization", "Bearer " + bot.Config.APIKey)
-
-        if err != nil {
-            log.Printf("Error creating request: %v", err)
-            return "Error creating request."
-        }
-
-        client := &http.Client{}
-        resp, err := client.Do(req)
-        if err != nil {
-            log.Printf("Error making request to API: %v", err)
-            return "Error sending request."
-        }
-        defer resp.Body.Close()
-
-        body, err := ioutil.ReadAll(resp.Body)
-        if err != nil {
-            log.Printf("Error reading response body: %v", err)
-            return "Error reading response."
-        }
-
-        log.Printf("Received response: %s\n", string(body))
-
-        var response struct {
-            Choices []struct {
-                Message struct {
-                    Content string `json:"content"`
-                } `json:"message"`
-            } `json:"choices"`
-        }
-        if err := json.Unmarshal(body, &response); err != nil {
-            log.Printf("Error decoding response from API: %v", err)
-            return "Error parsing response."
-        }
-
-        if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
-            responseContent = response.Choices[0].Message.Content
-
-            history = append(history, Message{Role: "assistant", Content: responseContent})
-            saveMessageHistory(history)
-            return responseContent
-        } else {
-            log.Printf("API response does not contain expected message structure or is empty.")
-            return "I'm sorry, I am having some trouble accessing the archives."
-        }
     }
 
-    return responseContent
+    // Serialize the payload to JSON
+    payloadBytes, err := json.Marshal(payload)
+    if err != nil {
+        log.Printf("Error encoding payload to JSON: %v", err)
+        return "Error encoding request payload."
+    }
+
+    // Sending the payload to the API
+    log.Printf("Sending payload: %s\n", string(payloadBytes))
+    req, err := http.NewRequest("POST", bot.Config.APIURL, bytes.NewBuffer(payloadBytes))
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("Authorization", "Bearer " + bot.Config.APIKey)
+
+    if err != nil {
+        log.Printf("Error creating request: %v", err)
+        return "Error creating request."
+    }
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        log.Printf("Error making request to API: %v", err)
+        return "Error sending request."
+    }
+    defer resp.Body.Close()
+
+    // Reading the response from the API
+    body, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        log.Printf("Error reading response body: %v", err)
+        return "Error reading response."
+    }
+
+    log.Printf("Received response: %s\n", string(body))
+
+    // Parsing the response
+    var response struct {
+        Choices []struct {
+            Message struct {
+                Content string `json:"content"`
+            } `json:"message"`
+        } `json:"choices"`
+    }
+    if err := json.Unmarshal(body, &response); err != nil {
+        log.Printf("Error decoding response from API: %v", err)
+        return "Error parsing response."
+    }
+
+    if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
+        responseContent = response.Choices[0].Message.Content
+
+        // Append the response from the assistant to the history if in "chat" mode
+        if bot.Config.APIMode == "chat" {
+            history = append(history, Message{Role: "assistant", Content: responseContent})
+            saveMessageHistory(history)
+        }
+        return responseContent
+    } else {
+        log.Printf("API response does not contain expected message structure or is empty.")
+        return "I'm sorry, I am having some trouble accessing the archives."
+    }
 }
 
 func (bot *Bot) handleMessage(e *irc.Event) {
