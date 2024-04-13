@@ -7,6 +7,8 @@
 *.dll
 *.so
 *.dylib
+*.bin
+*.o
 
 # Test binary, built with `go test -c`
 *.test
@@ -20,7 +22,7 @@
 # Go workspace file
 go.work
 
-# Custom dev files
+# Config and build files
+build/
 *.json
-*.o
 *.txt
