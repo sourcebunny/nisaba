@@ -152,19 +152,23 @@ After sending a query or command, Nisaba will process the input and respond in t
 Nisaba supports several commands that can be used to control the bot or modify its behavior dynamically. These commands should be prefixed with the bot's name, followed by a comma or colon, and the command:
 
 - **!clear**: Clears the message history stored by the bot. Useful for resetting the context in "chat" mode.
-       ```
-       Nisaba, !clear
-       ```
+  - `Nisaba, !clear`
 - **!options [filename]**: Loads specific option settings from a file named `options.[filename].json` if present in the `config` directory. This allows you to dynamically change how Nisaba interacts with the llamafile API without restarting the bot.
-       ```
-       Nisaba, !options precise
-       ```
+  - `Nisaba, !options precise`
 - **!system [message]**: Attaches a system prompt to the next message that Nisaba sends to the llamafile endpoint, affecting how responses are generated.
-       ```
-       Nisaba, !system You will respond using 100 words or less.
-       ```
+  - `Nisaba, !system You will respond using 100 words or less.`
 
 </details>
+
+## Credits
+
+Special thanks go to the following projects and their contributors.
+
+- **[Mozilla-Ocho/llamafile](https://github.com/Mozilla-Ocho/llamafile)**: 
+  - A powerful LLM backend used by Nisaba under Docker to host the API endpoint.
+
+- **[thoj/go-ircevent](https://github.com/thoj/go-ircevent)**:
+  - An IRC event handling library in Go that enables Nisaba to connect and interact with IRC servers.
 
 ## Disclaimer
 
