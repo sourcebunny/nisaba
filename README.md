@@ -81,22 +81,6 @@ Each method requires a configured `config.json` file, and optionally `options.js
 
 </details>
 
-### Configuration Files
-
-<details>
-<summary><strong>Configuration Files</strong> - Overview of various configuration files used by Nisaba.</summary>
-
-- **config.json**: Main configuration for the IRC bot, specifying connection details and API settings.
-- **options.json**: Optional parameters file designed to adjust llamafile's behavior, with settings like `temperature`, `top_k`, etc.
-- **systemprompt.txt**: System prompt for Nisaba sent to the llamafile endpoint.
-- **blocklist.txt**: Blocks specific IRC nicknames from interacting with Nisaba.
-- **history.txt**: Stores message context dynamically; should not be edited manually.
-- **llamafile_args.txt** (Docker only): Custom arguments to replace default llamafile settings under Docker.
-
-These configuration files can also be placed in the same directory as the compiled binary.
-
-</details>
-
 <details>
 <summary><strong>Standalone Setup</strong> - Instructions for setting up Nisaba without Docker.</summary>
 
@@ -120,14 +104,30 @@ These configuration files can also be placed in the same directory as the compil
 4. **Build the Bot**:
    - Navigate to the project directory and run:
      ```
-     go build -o nisaba.o .
+     go build -o nisaba.bin .
      ```
 
 5. **Run the Bot**:
    - Start the bot by running the binary:
      ```
-     ./nisaba.o
+     ./nisaba.bin
      ```
+
+</details>
+
+## Configuration
+
+<details>
+<summary><strong>Configuration Files</strong> - Overview of various configuration files used by Nisaba.</summary>
+
+- **config.json**: Main configuration for the IRC bot, specifying connection details and API settings.
+- **options.json**: Optional parameters file designed to adjust llamafile's behavior, with settings like `temperature`, `top_k`, etc.
+- **systemprompt.txt**: System prompt for Nisaba sent to the llamafile endpoint.
+- **blocklist.txt**: Blocks specific IRC nicknames from interacting with Nisaba.
+- **history.txt**: Stores message context dynamically; should not be edited manually.
+- **llamafile_args.txt** (Docker only): Custom arguments to replace default llamafile settings under Docker.
+
+These configuration files can also be placed in the same directory as the compiled binary.
 
 </details>
 
