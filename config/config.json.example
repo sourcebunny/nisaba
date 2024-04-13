@@ -1,0 +1,13 @@
+{
+    "nickname": "Nisaba",
+    "server": "irc.example.com",
+    "port": "6667",
+    "use_ssl": true,
+    "validate_ssl": true,
+    "commands": true,
+    "api_url": "https://localhost:8080/v1/chat/completions",
+    "api_key": "api_key_here",
+    "api_mode": "chat",
+    "channel": "#example",
+    "max_message_size": 400
+}

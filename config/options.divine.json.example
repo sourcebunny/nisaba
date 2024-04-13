@@ -1,0 +1,6 @@
+{
+    "temperature": 1.31,
+    "top_k": 49,
+    "top_p": 0.14,
+    "repeat_penalty": 1.17
+}

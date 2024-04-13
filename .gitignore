@@ -21,7 +21,6 @@
 go.work
 
 # Custom dev files
-config/
 *.json
 *.o
 *.txt
