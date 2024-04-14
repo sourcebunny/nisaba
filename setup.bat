@@ -168,5 +168,6 @@ echo.
 echo Example llamafile args for offloading layers to the GPU:
 echo llamafile.exe -m model.gguf -ngl 999
 echo.
+pause
 
 endlocal
