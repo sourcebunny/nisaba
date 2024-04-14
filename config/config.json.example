@@ -9,5 +9,5 @@
     "api_key": "api_key_here",
     "api_mode": "chat",
     "channel": "#example",
-    "max_message_size": 400
+    "message_size": 400
 }
