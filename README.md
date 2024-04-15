@@ -25,6 +25,34 @@ This switch was motivated by llamafile's [ease of use](https://justine.lol/oneli
 - Splits long messages to adhere to IRC's message length limits.
 - Allows commands through IRC, such as clearing message history or loading new configuration options.
 
+## To Do
+
+<details>
+<summary><strong>Planned Features</strong></summary>
+
+These are some features that are currently planned for Nisaba.
+
+- A new `README.md` will be added into the `config/` directory, to explain each parameter for each file.
+- Several settings in `config.json` will be made optional, and given a default value if not set.
+
+</details>
+
+<details>
+<summary><strong>Current Issues</strong></summary>
+
+These are issues, or shortcomings, that will be addressed in future releases.
+
+Below each issue is a proposed solution that is currently being considered, or worked on, to address each issue.
+
+- This project is in its early stages, some stability and performance issues are expected.
+    - If you come across any issues, feel free to report them through GitHub issues.
+- Full debugging output from the IRC connection is shown in Nisaba's logs.
+    - This will later be able to be toggled with a `config.json` setting to address this.
+- Messages are sent at an interval of 1 second, which may be too quick for some IRC servers.
+    - The delay between messages will later be set in a `config.json` setting to address this.
+
+</details>
+
 ## Requirements
 
 <details>
