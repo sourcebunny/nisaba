@@ -95,6 +95,44 @@ func loadConfig() Config {
 		log.Fatalf("Error decoding config file: %v", err)
 	}
 
+	// Validate mandatory fields
+	if config.Server == "" {
+		log.Fatalf("Mandatory configuration missing: 'server' is not set in config.json")
+	}
+	if config.Channel == "" {
+		log.Fatalf("Mandatory configuration missing: 'channel' is not set in config.json")
+	}
+
+	// Set defaults for optional fields if not present
+	if config.Nickname == "" {
+		config.Nickname = "Nisaba"
+	}
+	if config.Port == "" {
+		config.Port = "6667"
+	}
+	if config.APIURL == "" {
+		config.APIURL = "http://localhost:8080/v1/chat/completions"
+	}
+	if config.APIKey == "" {
+		config.APIKey = "null"
+	}
+	if config.APIMode == "" {
+		config.APIMode = "chat"
+	}
+
+	if config.UseSSL == false && !reflect.ValueOf(config.UseSSL).IsValid() {
+		config.UseSSL = false
+	}
+	if config.ValidateSSL == false && !reflect.ValueOf(config.ValidateSSL).IsValid() {
+		config.ValidateSSL = false
+	}
+	if config.Commands == false && !reflect.ValueOf(config.Commands).IsValid() {
+		config.Commands = true
+	}
+	if config.MessageSize == 0 {
+		config.MessageSize = 400
+	}
+
 	return config
 }
 
