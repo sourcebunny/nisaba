@@ -41,11 +41,11 @@ if /I "!config_irc!"=="y" (
     set /p port="Port (6667): "
     if "!port!"=="" set port=6667
 
-    set /p use_ssl="Use SSL (true): "
-    if "!use_ssl!"=="" set use_ssl=true
+    set /p use_ssl="Use SSL (false): "
+    if "!use_ssl!"=="" set use_ssl=false
 
-    set /p validate_ssl="Validate SSL (true): "
-    if "!validate_ssl!"=="" set validate_ssl=true
+    set /p validate_ssl="Validate SSL (false): "
+    if "!validate_ssl!"=="" set validate_ssl=false
 
     set /p commands="Allow Commands (true): "
     if "!commands!"=="" set commands=true

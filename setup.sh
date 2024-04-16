@@ -40,8 +40,8 @@ if [[ "$config_irc" =~ ^[Yy]|[Yy][Ee][Ss]$ ]]; then
     read -p "Nickname (Nisaba): " nickname
     read -p "Server (irc.example.com): " server
     read -p "Port (6667): " port
-    read -p "Use SSL (true): " use_ssl
-    read -p "Validate SSL (true): " validate_ssl
+    read -p "Use SSL (false): " use_ssl
+    read -p "Validate SSL (false): " validate_ssl
     read -p "Allow Commands (true): " commands
     read -p "API URL (http://localhost:8080/v1/chat/completions): " api_url
     read -p "API Key (api_key_here): " api_key
@@ -55,8 +55,8 @@ if [[ "$config_irc" =~ ^[Yy]|[Yy][Ee][Ss]$ ]]; then
     "nickname": "${nickname:-Nisaba}",
     "server": "${server:-irc.example.com}",
     "port": "${port:-6667}",
-    "use_ssl": ${use_ssl:-true},
-    "validate_ssl": ${validate_ssl:-true},
+    "use_ssl": ${use_ssl:-false},
+    "validate_ssl": ${validate_ssl:-false},
     "commands": ${commands:-true},
     "api_url": "${api_url:-http://localhost:8080/v1/chat/completions}",
     "api_key": "${api_key:-api_key_here}",
