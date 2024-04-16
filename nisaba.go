@@ -474,6 +474,7 @@ func handleCommands(bot *Bot, command, query, user string) {
 	case "!system":
 		newSystemMessage := Message{Role: "system", Content: query}
 		saveMessageHistory([]Message{newSystemMessage})
+		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Specified system prompt will be attached to the next message.", user))
 	case "!options":
 		optionsFile := fmt.Sprintf("options.%s.json", query)
 		newOptions, err := loadOptions(optionsFile)
