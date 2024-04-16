@@ -19,17 +19,18 @@ import (
 )
 
 type Config struct {
-	Nickname    string `json:"nickname"`
-	Server      string `json:"server"`
-	Port        string `json:"port"`
-	UseSSL      bool   `json:"use_ssl"`
-	ValidateSSL bool   `json:"validate_ssl"`
-	APIURL      string `json:"api_url"`
-	APIKey      string `json:"api_key"`
-	APIMode     string `json:"api_mode"`
-	Channel     string `json:"channel"`
-	MessageSize int    `json:"message_size"`
-	Commands    bool   `json:"commands"`
+	Channel     string  `json:"channel"`
+	Server      string  `json:"server"`
+	Nickname    *string `json:"nickname"`
+	Port        *string `json:"port"`
+	UseSSL      *bool   `json:"use_ssl"`
+	ValidateSSL *bool   `json:"validate_ssl"`
+	Commands    *bool   `json:"commands"`
+	Debug       *bool   `json:"debug"`
+	APIURL      *string `json:"api_url"`
+	APIKey      *string `json:"api_key"`
+	APIMode     *string `json:"api_mode"`
+	MessageSize *int    `json:"message_size"`
 }
 
 type Options struct {
@@ -70,15 +71,13 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-var blockedUsers map[string]bool
-
 func getConfigFilePath(fileName string) string {
 	configDir := "config"
-	configPath := filepath.Join(configDir, fileName)
-	if _, err := os.Stat(configPath); err == nil {
-		return configPath
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		return fileName
+	} else {
+		return filepath.Join(configDir, fileName)
 	}
-	return fileName
 }
 
 func loadConfig() Config {
@@ -104,33 +103,41 @@ func loadConfig() Config {
 	}
 
 	// Set defaults for optional fields if not present
-	if config.Nickname == "" {
-		config.Nickname = "Nisaba"
+	if config.Nickname == nil {
+		defaultNickname := "Nisaba"
+		config.Nickname = &defaultNickname
 	}
-	if config.Port == "" {
-		config.Port = "6667"
+	if config.Port == nil {
+		defaultPort := "6667"
+		config.Port = &defaultPort
 	}
-	if config.APIURL == "" {
-		config.APIURL = "http://localhost:8080/v1/chat/completions"
+	if config.APIURL == nil {
+		defaultAPIURL := "http://localhost:8080/v1/chat/completions"
+		config.APIURL = &defaultAPIURL
 	}
-	if config.APIKey == "" {
-		config.APIKey = "null"
+	if config.APIKey == nil {
+		defaultAPIKey := "null"
+		config.APIKey = &defaultAPIKey
 	}
-	if config.APIMode == "" {
-		config.APIMode = "chat"
+	if config.APIMode == nil {
+		defaultAPIMode := "chat"
+		config.APIMode = &defaultAPIMode
 	}
-
-	if config.UseSSL == false && !reflect.ValueOf(config.UseSSL).IsValid() {
-		config.UseSSL = false
+	if config.UseSSL == nil {
+		defaultUseSSL := false
+		config.UseSSL = &defaultUseSSL
 	}
-	if config.ValidateSSL == false && !reflect.ValueOf(config.ValidateSSL).IsValid() {
-		config.ValidateSSL = false
+	if config.ValidateSSL == nil {
+		defaultValidateSSL := false
+		config.ValidateSSL = &defaultValidateSSL
 	}
-	if config.Commands == false && !reflect.ValueOf(config.Commands).IsValid() {
-		config.Commands = true
+	if config.Commands == nil {
+		defaultCommands := true
+		config.Commands = &defaultCommands
 	}
-	if config.MessageSize == 0 {
-		config.MessageSize = 400
+	if config.MessageSize == nil {
+		defaultMessageSize := 400
+		config.MessageSize = &defaultMessageSize
 	}
 
 	return config
@@ -151,6 +158,8 @@ func loadOptions(fileName string) (*Options, error) {
 	}
 	return &opts, nil
 }
+
+var blockedUsers map[string]bool
 
 func loadBlockedUsers() {
 	blockedUsers = make(map[string]bool)
@@ -186,47 +195,53 @@ func loadSystemPrompt() string {
 	return string(content)
 }
 
-func loadMessageHistory() []Message {
-	var history []Message
-	filePath := filepath.Join("config", "history.txt")
+func createMessageHistory() {
+	filePath := getConfigFilePath("history.txt")
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		if _, err := os.Stat("config"); os.IsNotExist(err) {
-			filePath = "history.txt"
-		}
-
+		var history []Message
 		systemPromptContent := loadSystemPrompt()
 		if systemPromptContent != "" {
 			initialSystemMessage := Message{Role: "system", Content: systemPromptContent}
 			history = append(history, initialSystemMessage)
 		}
-		saveMessageHistory(history)
-		return history
+		fileContent, err := json.MarshalIndent(history, "", "  ")
+		if err != nil {
+			log.Fatalf("Error encoding message history: %v", err)
+		}
+		if err := ioutil.WriteFile(filePath, fileContent, 0644); err != nil {
+			log.Fatalf("Error writing initial message history: %v", err)
+		}
+	}
+}
+
+func loadMessageHistory() []Message {
+	filePath := getConfigFilePath("history.txt")
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		createMessageHistory()
 	}
 
 	fileContent, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		log.Fatalf("Error reading message history: %v", err)
 	}
+	var history []Message
 	if err := json.Unmarshal(fileContent, &history); err != nil {
 		log.Fatalf("Error parsing message history: %v", err)
 	}
 	return history
 }
 
-func saveMessageHistory(history []Message) {
-	configPath := "config"
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		if err := os.Mkdir(configPath, 0755); err != nil {
-			log.Fatalf("Failed to create config directory: %v", err)
-		}
-	}
+func saveMessageHistory(newMessages []Message) {
+	filePath := getConfigFilePath("history.txt")
+	existingHistory := loadMessageHistory()
+	updatedHistory := append(existingHistory, newMessages...)
 
-	filePath := filepath.Join(configPath, "history.txt")
-	file, err := json.MarshalIndent(history, "", "  ")
+	fileContent, err := json.MarshalIndent(updatedHistory, "", "  ")
 	if err != nil {
 		log.Fatalf("Error encoding message history: %v", err)
 	}
-	if err := ioutil.WriteFile(filePath, file, 0644); err != nil {
+
+	if err := ioutil.WriteFile(filePath, fileContent, 0644); err != nil {
 		log.Fatalf("Error writing message history: %v", err)
 	}
 }
@@ -236,20 +251,42 @@ func NewBot(config Config) *Bot {
 		Config:      config,
 		IsAvailable: true,
 	}
-	irccon := irc.IRC(config.Nickname, config.Nickname)
-	irccon.VerboseCallbackHandler = true
-	irccon.Debug = true
-	irccon.UseTLS = config.UseSSL
-	if config.UseSSL {
+
+	nickname := "Nisaba"
+	if config.Nickname != nil {
+		nickname = *config.Nickname
+	}
+
+	irccon := irc.IRC(nickname, nickname)
+
+	debug := false
+	if config.Debug != nil {
+		debug = *config.Debug
+	}
+	irccon.VerboseCallbackHandler = debug
+	irccon.Debug = debug
+
+	useSSL := false
+	if config.UseSSL != nil {
+		useSSL = *config.UseSSL
+	}
+	irccon.UseTLS = useSSL
+
+	validateSSL := false
+	if config.ValidateSSL != nil {
+		validateSSL = *config.ValidateSSL
+	}
+	if useSSL {
 		irccon.TLSConfig = &tls.Config{
-			InsecureSkipVerify: !config.ValidateSSL,
+			InsecureSkipVerify: !validateSSL,
 		}
-		if config.ValidateSSL {
+		if validateSSL {
 			irccon.TLSConfig.ServerName = config.Server
 		}
 	}
 
 	irccon.AddCallback("001", func(e *irc.Event) { irccon.Join(config.Channel) })
+
 	irccon.AddCallback("PRIVMSG", bot.handleMessage)
 
 	bot.IRCConnection = irccon
@@ -259,20 +296,17 @@ func NewBot(config Config) *Bot {
 func (bot *Bot) callAPI(query string) string {
 	var responseContent string
 	var payload map[string]interface{}
-	var history []Message
 
+	// Prepare payload for the API call based on the mode
+
+	// Use "chat" for "/v1/chat/completions" endpoint
 	// Use "query" for "/completion" endpoint
-	if bot.Config.APIMode == "query" {
-		payload = map[string]interface{}{
-			"prompt": query,
-			"stream": false,
-		}
-		// Use "chat" for "/v1/chat/completions" endpoint
-	} else if bot.Config.APIMode == "chat" {
+
+	if *bot.Config.APIMode == "chat" {
 		history := loadMessageHistory()
 		newUserMessage := Message{Role: "user", Content: query}
 		history = append(history, newUserMessage)
-		saveMessageHistory(history)
+		saveMessageHistory([]Message{newUserMessage})
 
 		messagesPayload := make([]map[string]interface{}, len(history))
 		for i, msg := range history {
@@ -286,16 +320,22 @@ func (bot *Bot) callAPI(query string) string {
 			"messages": messagesPayload,
 			"stream":   false,
 		}
+	} else if *bot.Config.APIMode == "query" {
+		payload = map[string]interface{}{
+			"prompt": query,
+			"stream": false,
+		}
 	}
 
-	// Add optional parameters from the Options struct if they are set
+	// Include options from the Options struct
 	if bot.Options != nil {
 		val := reflect.ValueOf(*bot.Options)
 		typ := val.Type()
 		for i := 0; i < val.NumField(); i++ {
 			field := val.Field(i)
 			if !field.IsNil() {
-				payload[strings.ToLower(typ.Field(i).Name)] = field.Elem().Interface()
+				payloadKey := strings.ToLower(typ.Field(i).Name)
+				payload[payloadKey] = field.Elem().Interface()
 			}
 		}
 	}
@@ -309,9 +349,9 @@ func (bot *Bot) callAPI(query string) string {
 
 	// Sending the payload to the API
 	log.Printf("Sending payload: %s\n", string(payloadBytes))
-	req, err := http.NewRequest("POST", bot.Config.APIURL, bytes.NewBuffer(payloadBytes))
+	req, err := http.NewRequest("POST", *bot.Config.APIURL, bytes.NewBuffer(payloadBytes))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+bot.Config.APIKey)
+	req.Header.Set("Authorization", "Bearer "+*bot.Config.APIKey)
 
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
@@ -336,31 +376,38 @@ func (bot *Bot) callAPI(query string) string {
 	log.Printf("Received response: %s\n", string(body))
 
 	// Parsing the response
-	var response struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(body, &response); err != nil {
-		log.Printf("Error decoding response from API: %v", err)
-		return "Error parsing response."
-	}
-
-	if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
-		responseContent = response.Choices[0].Message.Content
-
-		if bot.Config.APIMode == "chat" {
-			// Append the assistant's response to the message history
-			history = append(history, Message{Role: "assistant", Content: responseContent})
-			saveMessageHistory(history)
+	if *bot.Config.APIMode == "chat" {
+		var response struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
 		}
-		return responseContent
-	} else {
-		log.Printf("API response does not contain expected message structure or is empty.")
-		return "I'm sorry, I am having some trouble accessing the archives."
+		if err := json.Unmarshal(body, &response); err != nil {
+			log.Printf("Error decoding response from API: %v", err)
+			return "Error parsing response."
+		}
+
+		if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
+			responseContent = response.Choices[0].Message.Content
+			// Append the assistant's response to the message history
+			responseMessage := Message{Role: "assistant", Content: responseContent}
+			saveMessageHistory([]Message{responseMessage})
+		}
+	} else if *bot.Config.APIMode == "query" {
+		// Directly parse the response content for query mode
+		var response struct {
+			Content string `json:"content"`
+		}
+		if err := json.Unmarshal(body, &response); err != nil {
+			log.Printf("Error decoding response from API: %v", err)
+			return "Error parsing response."
+		}
+		responseContent = response.Content
 	}
+
+	return responseContent
 }
 
 func (bot *Bot) handleMessage(e *irc.Event) {
@@ -371,7 +418,7 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 	message := e.Message()
 
 	// Check if the message starts with the bot's nickname
-	re := regexp.MustCompile(`(?i)^` + regexp.QuoteMeta(bot.Config.Nickname) + `[:,]?\s?(.*)`)
+	re := regexp.MustCompile(`(?i)^` + regexp.QuoteMeta(*bot.Config.Nickname) + `[:,]?\s?(.*)`)
 	matches := re.FindStringSubmatch(strings.TrimSpace(message))
 
 	if len(matches) > 1 {
@@ -388,7 +435,7 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 
 		firstWord, restOfMessage := parts[0], strings.Join(parts[1:], " ")
 
-		if !bot.Config.Commands && strings.HasPrefix(firstWord, "!") {
+		if !*bot.Config.Commands && strings.HasPrefix(firstWord, "!") {
 			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Commands are currently disabled.", user))
 			bot.IsAvailable = true
 			return
@@ -421,10 +468,7 @@ func handleCommands(bot *Bot, command, query, user string) {
 		}
 	case "!system":
 		newSystemMessage := Message{Role: "system", Content: query}
-		history := loadMessageHistory()
-		history = append(history, newSystemMessage)
-		saveMessageHistory(history)
-		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My system instructions have been updated.", user))
+		saveMessageHistory([]Message{newSystemMessage})
 	case "!options":
 		optionsFile := fmt.Sprintf("options.%s.json", query)
 		newOptions, err := loadOptions(optionsFile)
@@ -439,7 +483,7 @@ func handleCommands(bot *Bot, command, query, user string) {
 }
 
 func (bot *Bot) sendMessage(user, response string) {
-	messages := splitMessage(response, bot.Config.MessageSize)
+	messages := splitMessage(response, *bot.Config.MessageSize)
 	for i, msg := range messages {
 		if i == 0 {
 			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: %s", user, msg))
@@ -488,7 +532,8 @@ func main() {
 	bot := NewBot(config)
 	bot.Options = defaultOptions
 
-	if err := bot.IRCConnection.Connect(fmt.Sprintf("%s:%s", config.Server, config.Port)); err != nil {
+	serverAndPort := fmt.Sprintf("%s:%s", config.Server, *config.Port)
+	if err := bot.IRCConnection.Connect(serverAndPort); err != nil {
 		log.Fatalf("Failed to connect: %v", err)
 	}
 
