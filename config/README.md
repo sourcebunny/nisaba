@@ -21,6 +21,8 @@ All options except for `server` and `channel` are optional in this file.
 - **api_url** (string): URL of the API endpoint, default is `"http://localhost:8080/v1/chat/completions"`.
 - **api_key** (string): Authentication key for the API if required, default is `"null"`.
 - **api_mode** (string): Determines if the bot uses "chat" or "query" mode, default is `"chat"`.
+  - The "chat" mode is intended to be used with the `/v1/chat/completions` API endpoint.
+  - The "query" mode is intended to be used with the `/completion` API endpoint.
 - **nickname** (string): The nickname that Nisaba will use in IRC, default is `"Nisaba"`.
 - **message_size** (int): Maximum characters in each message sent by the bot, default is `400`.
 - **delay** (int): Set the delay between messages in seconds, default is `3`.
