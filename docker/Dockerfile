@@ -14,7 +14,7 @@ RUN go get github.com/thoj/go-ircevent && \
     go build -o nisaba .
 
 # Download llamafile
-RUN curl -L -o /app/llamafile https://github.com/Mozilla-Ocho/llamafile/releases/download/0.7/llamafile-0.7 && \
+RUN curl -L -o /app/llamafile https://github.com/Mozilla-Ocho/llamafile/releases/download/0.7.1/llamafile-0.7.1 && \
     chmod +x /app/llamafile
 
 # Start from a fresh base image to reduce size
