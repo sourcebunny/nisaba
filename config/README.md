@@ -1,4 +1,4 @@
-# Configuration Examples
+# Configuration
 
 This directory contains example configuration files for Nisaba.
 
@@ -8,18 +8,22 @@ Below is an explanation of each file and the parameters they accept.
 
 This is the primary configuration file required to specify IRC connection details and API settings.
 
+All options except for `server` and `channel` are optional in this file.
+
 ### Parameters
 - **server** (string) (required): The IRC server Nisaba connects to. e.g., `"irc.example.com"`.
 - **channel** (string) (required): The IRC channel Nisaba will join and operate within, e.g., `"#example"`.
 - **port** (string): IRC server port, default is `"6667"`.
 - **use_ssl** (boolean): Enables SSL connection to the IRC server, default is `false`.
 - **validate_ssl** (boolean): Enables SSL certificate validation, default is `false`.
+- **commands** (boolean): Flag to enable or disable command handling, default is `true`.
+- **debug** (boolean): Flag to enable or disable debug output, default is `false`.
 - **api_url** (string): URL of the API endpoint, default is `"http://localhost:8080/v1/chat/completions"`.
-- **api_key** (string): Authentication key for the API, default is `"null"` if not required.
+- **api_key** (string): Authentication key for the API if required, default is `"null"`.
 - **api_mode** (string): Determines if the bot uses "chat" or "query" mode, default is `"chat"`.
 - **nickname** (string): The nickname that Nisaba will use in IRC, default is `"Nisaba"`.
-- **message_size** (int): Maximum message size that Nisaba will handle, default is `400`.
-- **commands** (boolean): Flag to enable or disable command handling, default is `true`.
+- **message_size** (int): Maximum characters in each message sent by the bot, default is `400`.
+- **delay** (int): Set the delay between messages in seconds, default is `3`.
 
 ## `options.json`
 
@@ -47,12 +51,12 @@ Optional parameters file designed to adjust llamafile's behavior in the request 
 - **penalize_nl** (boolean): Default `true`
 - **ignore_eos** (boolean): Default `false`
 - **cache_prompt** (boolean): Default `false`
-- **penalty_prompt** (string): Default `null`
-- **system_prompt** (string): Default `null`
 
 ## `systemprompt.txt`
 
-Contains the system prompt for Nisaba sent to the llamafile endpoint. This file sets the initial conversational tone or instructions.
+Contains the system prompt for Nisaba sent to the llamafile endpoint in "chat" mode.
+
+This file sets the initial conversational tone or instructions.
 
 ## `blocklist.txt`
 

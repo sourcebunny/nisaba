@@ -47,7 +47,7 @@ if /I "!config_irc!"=="y" (
     set /p validate_ssl="Validate SSL (true): "
     if "!validate_ssl!"=="" set validate_ssl=true
 
-    set /p commands="Commands (true): "
+    set /p commands="Allow Commands (true): "
     if "!commands!"=="" set commands=true
 
     set /p api_url="API URL (http://localhost:8080/v1/chat/completions): "
@@ -65,6 +65,9 @@ if /I "!config_irc!"=="y" (
     set /p message_size="Max Message Size (400): "
     if "!message_size!"=="" set message_size=400
 
+    set /p delay="Delay Between Messages in Seconds (3): "
+    if "!delay!"=="" set delay=3
+
     (
         echo {
         echo     "nickname": "!nickname!",
@@ -77,7 +80,8 @@ if /I "!config_irc!"=="y" (
         echo     "api_key": "!api_key!",
         echo     "api_mode": "!api_mode!",
         echo     "channel": "!channel!",
-        echo     "message_size": !message_size!
+        echo     "message_size": !message_size!,
+        echo     "delay": !delay!
         echo }
     ) > config/config.json
 ) else (

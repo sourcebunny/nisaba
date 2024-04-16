@@ -42,12 +42,13 @@ if [[ "$config_irc" =~ ^[Yy]|[Yy][Ee][Ss]$ ]]; then
     read -p "Port (6667): " port
     read -p "Use SSL (true): " use_ssl
     read -p "Validate SSL (true): " validate_ssl
-    read -p "Commands (true): " commands
+    read -p "Allow Commands (true): " commands
     read -p "API URL (http://localhost:8080/v1/chat/completions): " api_url
     read -p "API Key (api_key_here): " api_key
     read -p "API Mode (chat): " api_mode
     read -p "Channel (#example): " channel
     read -p "Max Message Size (400): " message_size
+    read -p "Delay Between Messages in Seconds (3): " delay
 
     cat << EOF > config/config.json
 {
@@ -61,7 +62,8 @@ if [[ "$config_irc" =~ ^[Yy]|[Yy][Ee][Ss]$ ]]; then
     "api_key": "${api_key:-api_key_here}",
     "api_mode": "${api_mode:-chat}",
     "channel": "${channel:-#example}",
-    "message_size": ${message_size:-400}
+    "message_size": ${message_size:-400},
+    "delay": ${delay:-3}
 }
 EOF
 else

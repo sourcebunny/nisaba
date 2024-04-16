@@ -5,9 +5,11 @@
     "use_ssl": false,
     "validate_ssl": false,
     "commands": true,
+    "debug": false,
     "api_url": "http://localhost:8080/v1/chat/completions",
     "api_key": "api_key_here",
     "api_mode": "chat",
     "channel": "#example",
-    "message_size": 400
+    "message_size": 400,
+    "delay": 3
 }

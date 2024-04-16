@@ -31,6 +31,7 @@ type Config struct {
 	APIKey      *string `json:"api_key"`
 	APIMode     *string `json:"api_mode"`
 	MessageSize *int    `json:"message_size"`
+	Delay       *int    `json:"delay"`
 }
 
 type Options struct {
@@ -138,6 +139,10 @@ func loadConfig() Config {
 	if config.MessageSize == nil {
 		defaultMessageSize := 400
 		config.MessageSize = &defaultMessageSize
+	}
+	if config.Delay == nil || *config.Delay < 1 {
+		defaultDelay := 3
+		config.Delay = &defaultDelay
 	}
 
 	return config
@@ -484,13 +489,14 @@ func handleCommands(bot *Bot, command, query, user string) {
 
 func (bot *Bot) sendMessage(user, response string) {
 	messages := splitMessage(response, *bot.Config.MessageSize)
+	delay := time.Duration(*bot.Config.Delay) * time.Second
 	for i, msg := range messages {
 		if i == 0 {
 			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: %s", user, msg))
 		} else {
+			time.Sleep(delay)
 			bot.IRCConnection.Privmsg(bot.Config.Channel, msg)
 		}
-		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -499,16 +505,21 @@ func splitMessage(response string, maxSize int) []string {
 	var currentSize int
 	var currentPart bytes.Buffer
 
-	for _, runeValue := range response {
+	// Regular expression to collapse multiple newlines
+	re := regexp.MustCompile(`\n+`)
+	normalizedResponse := re.ReplaceAllString(response, "\n")
+
+	for _, runeValue := range normalizedResponse {
 		if currentSize+len(string(runeValue)) > maxSize || runeValue == '\n' {
-			parts = append(parts, currentPart.String())
-			currentPart.Reset()
-			currentSize = 0
+			if currentPart.Len() > 0 {
+				parts = append(parts, currentPart.String())
+				currentPart.Reset()
+				currentSize = 0
+			}
+			continue
 		}
-		if runeValue != '\n' {
-			currentPart.WriteRune(runeValue)
-			currentSize += len(string(runeValue))
-		}
+		currentPart.WriteRune(runeValue)
+		currentSize += len(string(runeValue))
 	}
 
 	if currentPart.Len() > 0 {
