@@ -510,18 +510,25 @@ func splitMessage(response string, maxSize int) []string {
 	normalizedResponse := re.ReplaceAllString(response, "\n")
 
 	for _, runeValue := range normalizedResponse {
+		// Check if adding this rune would exceed the size or it's a newline character
 		if currentSize+len(string(runeValue)) > maxSize || runeValue == '\n' {
 			if currentPart.Len() > 0 {
 				parts = append(parts, currentPart.String())
 				currentPart.Reset()
 				currentSize = 0
 			}
-			continue
+			// Skip directly appending newline to avoid empty strings
+			if runeValue != '\n' {
+				currentPart.WriteRune(runeValue)
+				currentSize += len(string(runeValue))
+			}
+		} else {
+			currentPart.WriteRune(runeValue)
+			currentSize += len(string(runeValue))
 		}
-		currentPart.WriteRune(runeValue)
-		currentSize += len(string(runeValue))
 	}
 
+	// Append the last part if there's any content left in the buffer
 	if currentPart.Len() > 0 {
 		parts = append(parts, currentPart.String())
 	}
