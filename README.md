@@ -35,6 +35,10 @@ These are some features that are currently planned for Nisaba.
 - Default responses sent to users will be able to be customized.
   - For example: `I will think about that and be back with you shortly.`
   - Some default responses will be able to be toggled.
+- Conversations will be able to be saved and loaded at a later time.
+  - This will likely be in the form of `!save` and `!load` commands.
+- Support for other chat platforms, such as Discord, will eventually be added.
+  - For now, focus is being put on making things work properly within IRC.
 
 </details>
 
