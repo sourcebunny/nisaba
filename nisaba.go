@@ -250,6 +250,18 @@ func loadSystemPrompt() string {
 	return string(content)
 }
 
+func loadReminderPrompt() string {
+	filePath := getConfigFilePath("reminderprompt.txt")
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ""
+		}
+		log.Fatalf("Error reading reminder prompt file: %v", err)
+	}
+	return string(content)
+}
+
 func getHistoryFilePath() string {
 	var filePath = "history.txt"
 
@@ -418,6 +430,13 @@ func (bot *Bot) callAPI(query string) string {
 			// Append the assistant's response to the message history
 			responseMessage := Message{Role: "assistant", Content: responseContent}
 			saveMessageHistory([]Message{responseMessage})
+
+			// Append the reminder prompt if it exists
+			reminderPrompt := loadReminderPrompt()
+			if reminderPrompt != "" {
+				reminderMessage := Message{Role: "system", Content: reminderPrompt}
+				saveMessageHistory([]Message{reminderMessage})
+			}
 		}
 	} else if *bot.Config.APIMode == "query" {
 		// Directly parse the response content for query mode
