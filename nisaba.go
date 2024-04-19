@@ -3,10 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/thoj/go-ircevent"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,7 +13,6 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"time"
 )
 
 type Config struct {
@@ -61,16 +58,24 @@ type Options struct {
 }
 
 type Bot struct {
-	Config        Config
-	Options       *Options
-	IRCConnection *irc.Connection
-	IsAvailable   bool
+	Config      Config
+	Options     *Options
+	IsAvailable bool
+}
+
+func NewBot(config Config) *Bot {
+	return &Bot{
+		Config:      config,
+		IsAvailable: true,
+	}
 }
 
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
+
+var sendMessage func(channel, message string)
 
 func getConfigFilePath(fileName string) string {
 	if profileDir != "" {
@@ -188,11 +193,11 @@ func loadProfile(bot *Bot, profileName string, user string) {
 		}
 		loadMessageHistory()
 		loadBlockedUsers()
-		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Profile directory has been reset to default settings.", user))
+		sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Profile directory has been reset to default settings.", user))
 	} else if match, _ := regexp.MatchString(`^[a-zA-Z0-9]+$`, profileName); match {
 		dirPath := filepath.Join("profiles", profileName)
 		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: The directory does not exist: '%s'.", user, dirPath))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: The directory does not exist: '%s'.", user, dirPath))
 		} else {
 			profileDir = profileName
 			opts, err := loadOptions("options.json")
@@ -202,10 +207,10 @@ func loadProfile(bot *Bot, profileName string, user string) {
 			}
 			loadMessageHistory()
 			loadBlockedUsers()
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Configuration directory is set to '%s'.", user, dirPath))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Configuration directory is set to '%s'.", user, dirPath))
 		}
 	} else {
-		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Invalid directory name. Only alphanumeric characters are allowed.", user))
+		sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Invalid directory name. Only alphanumeric characters are allowed.", user))
 	}
 }
 
@@ -310,53 +315,6 @@ func saveMessageHistory(newMessages []Message) {
 	if err := ioutil.WriteFile(filePath, fileContent, 0644); err != nil {
 		log.Fatalf("Error writing message history: %v", err)
 	}
-}
-
-func NewBot(config Config) *Bot {
-	bot := &Bot{
-		Config:      config,
-		IsAvailable: true,
-	}
-
-	nickname := "Nisaba"
-	if config.Nickname != nil {
-		nickname = *config.Nickname
-	}
-
-	irccon := irc.IRC(nickname, nickname)
-
-	debug := false
-	if config.Debug != nil {
-		debug = *config.Debug
-	}
-	irccon.VerboseCallbackHandler = debug
-	irccon.Debug = debug
-
-	useSSL := false
-	if config.UseSSL != nil {
-		useSSL = *config.UseSSL
-	}
-	irccon.UseTLS = useSSL
-
-	validateSSL := false
-	if config.ValidateSSL != nil {
-		validateSSL = *config.ValidateSSL
-	}
-	if useSSL {
-		irccon.TLSConfig = &tls.Config{
-			InsecureSkipVerify: !validateSSL,
-		}
-		if validateSSL {
-			irccon.TLSConfig.ServerName = config.Server
-		}
-	}
-
-	irccon.AddCallback("001", func(e *irc.Event) { irccon.Join(config.Channel) })
-
-	irccon.AddCallback("PRIVMSG", bot.handleMessage)
-
-	bot.IRCConnection = irccon
-	return bot
 }
 
 func (bot *Bot) callAPI(query string) string {
@@ -476,93 +434,31 @@ func (bot *Bot) callAPI(query string) string {
 	return responseContent
 }
 
-func (bot *Bot) handleMessage(e *irc.Event) {
-	if !bot.IsAvailable || blockedUsers[e.Nick] {
-		return
-	}
-
-	message := e.Message()
-
-	// Check if the message starts with the bot's nickname
-	re := regexp.MustCompile(`(?i)^` + regexp.QuoteMeta(*bot.Config.Nickname) + `[:,]?\s?(.*)`)
-	matches := re.FindStringSubmatch(strings.TrimSpace(message))
-
-	if len(matches) > 1 {
-		bot.IsAvailable = false
-		user := e.Nick
-		entireMessage := matches[1]
-
-		// Split to check for commands
-		parts := strings.Fields(entireMessage)
-		if len(parts) == 0 {
-			bot.IsAvailable = true
-			return
-		}
-
-		firstWord, restOfMessage := parts[0], strings.Join(parts[1:], " ")
-
-		if !*bot.Config.Commands && strings.HasPrefix(firstWord, "!") {
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Commands are currently disabled.", user))
-			bot.IsAvailable = true
-			return
-		}
-
-		switch firstWord {
-		case "!clear", "!system", "!options", "!profile":
-			handleCommands(bot, firstWord, restOfMessage, user)
-		default:
-			// Handle as a normal message if no command is detected
-			query := entireMessage
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I will think about that and be back with you shortly.", user))
-			go func() {
-				response := bot.callAPI(query)
-				bot.sendMessage(user, response)
-				bot.IsAvailable = true
-			}()
-		}
-	}
-}
-
-func handleCommands(bot *Bot, command, query, user string) {
+func handleCommands(bot *Bot, command, query, user string, sendMessage func(channel, message string)) {
 	switch command {
 	case "!clear":
 		historyFilePath := getHistoryFilePath()
 		if _, err := os.Stat(historyFilePath); os.IsNotExist(err) {
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I can't clear my recent memory. It may already be empty.", user))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: I can't clear my recent memory. It may already be empty.", user))
 		} else {
 			createMessageHistory()
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My recent memory has been cleared.", user))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: My recent memory has been cleared.", user))
 		}
 	case "!system":
 		newSystemMessage := Message{Role: "system", Content: query}
 		saveMessageHistory([]Message{newSystemMessage})
-		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Specified system prompt will be attached to the next message.", user))
+		sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Specified system prompt will be attached to the next message.", user))
 	case "!options":
-		// Todo - Make default when blank is passed
 		optionsFile := fmt.Sprintf("options.%s.json", query)
 		newOptions, err := loadOptions(optionsFile)
 		if err != nil {
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Failed to load options from '%s'.", user, optionsFile))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Failed to load options from '%s'.", user, optionsFile))
 		} else {
 			bot.Options = newOptions
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Options loaded successfully from '%s'.", user, optionsFile))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Options loaded successfully from '%s'.", user, optionsFile))
 		}
 	case "!profile":
 		loadProfile(bot, query, user)
-	}
-	bot.IsAvailable = true
-}
-
-func (bot *Bot) sendMessage(user, response string) {
-	messages := splitMessage(response, *bot.Config.MessageSize)
-	delay := time.Duration(*bot.Config.Delay) * time.Second
-	for i, msg := range messages {
-		if i == 0 {
-			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: %s", user, msg))
-		} else {
-			time.Sleep(delay)
-			bot.IRCConnection.Privmsg(bot.Config.Channel, msg)
-		}
 	}
 }
 
@@ -616,10 +512,7 @@ func main() {
 	bot := NewBot(config)
 	bot.Options = defaultOptions
 
-	serverAndPort := fmt.Sprintf("%s:%s", config.Server, *config.Port)
-	if err := bot.IRCConnection.Connect(serverAndPort); err != nil {
-		log.Fatalf("Failed to connect: %v", err)
-	}
-
-	bot.IRCConnection.Loop()
+	ircBot := NewIRCBot(bot)
+	sendMessage = ircBot.sendIRCMessage
+	ircBot.ConnectAndListen()
 }
