@@ -24,5 +24,6 @@ go.work
 
 # Config and build files
 build/
+profiles/
 *.json
 *.txt

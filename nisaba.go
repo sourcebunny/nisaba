@@ -73,12 +73,24 @@ type Message struct {
 }
 
 func getConfigFilePath(fileName string) string {
-	configDir := "config"
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		return fileName
-	} else {
-		return filepath.Join(configDir, fileName)
+	if profileDir != "" {
+		profilePath := filepath.Join("profiles", profileDir, fileName)
+		if _, err := os.Stat(profilePath); err == nil {
+			return profilePath
+		}
 	}
+
+	configDir := "config"
+	defaultPath := filepath.Join(configDir, fileName)
+	if _, err := os.Stat(defaultPath); err == nil {
+		return defaultPath
+	}
+
+	if _, err := os.Stat(fileName); err == nil {
+		return fileName
+	}
+
+	return filepath.Join(configDir, fileName)
 }
 
 func loadConfig() Config {
@@ -164,6 +176,39 @@ func loadOptions(fileName string) (*Options, error) {
 	return &opts, nil
 }
 
+var profileDir string
+
+func loadProfile(bot *Bot, profileName string, user string) {
+	if profileName == "" {
+		profileDir = ""
+		opts, err := loadOptions("options.json")
+		if err == nil {
+			bot.Options = opts
+			log.Printf("Options file for API endpoint has been reloaded with default settings.")
+		}
+		loadMessageHistory()
+		loadBlockedUsers()
+		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Profile directory has been reset to default settings.", user))
+	} else if match, _ := regexp.MatchString(`^[a-zA-Z0-9]+$`, profileName); match {
+		dirPath := filepath.Join("profiles", profileName)
+		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: The directory does not exist: '%s'.", user, dirPath))
+		} else {
+			profileDir = profileName
+			opts, err := loadOptions("options.json")
+			if err == nil {
+				bot.Options = opts
+				log.Printf("Options file for API endpoint has been reloaded for profile '%s'.", profileName)
+			}
+			loadMessageHistory()
+			loadBlockedUsers()
+			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Configuration directory is set to '%s'.", user, dirPath))
+		}
+	} else {
+		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Invalid directory name. Only alphanumeric characters are allowed.", user))
+	}
+}
+
 var blockedUsers map[string]bool
 
 func loadBlockedUsers() {
@@ -200,27 +245,43 @@ func loadSystemPrompt() string {
 	return string(content)
 }
 
+func getHistoryFilePath() string {
+	var filePath = "history.txt"
+
+	if profileDir != "" {
+		customPath := filepath.Join("profiles", profileDir, "history.txt")
+		if _, err := os.Stat(filepath.Join("profiles", profileDir)); err == nil {
+			filePath = customPath
+		}
+	} else {
+		configPath := filepath.Join("config", "history.txt")
+		if _, err := os.Stat(filepath.Join("config")); err == nil {
+			filePath = configPath
+		}
+	}
+
+	return filePath
+}
+
 func createMessageHistory() {
-	filePath := getConfigFilePath("history.txt")
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		var history []Message
-		systemPromptContent := loadSystemPrompt()
-		if systemPromptContent != "" {
-			initialSystemMessage := Message{Role: "system", Content: systemPromptContent}
-			history = append(history, initialSystemMessage)
-		}
-		fileContent, err := json.MarshalIndent(history, "", "  ")
-		if err != nil {
-			log.Fatalf("Error encoding message history: %v", err)
-		}
-		if err := ioutil.WriteFile(filePath, fileContent, 0644); err != nil {
-			log.Fatalf("Error writing initial message history: %v", err)
-		}
+	filePath := getHistoryFilePath()
+	var history []Message
+	systemPromptContent := loadSystemPrompt()
+	if systemPromptContent != "" {
+		initialSystemMessage := Message{Role: "system", Content: systemPromptContent}
+		history = append(history, initialSystemMessage)
+	}
+	fileContent, err := json.MarshalIndent(history, "", "  ")
+	if err != nil {
+		log.Fatalf("Error encoding message history: %v", err)
+	}
+	if err := ioutil.WriteFile(filePath, fileContent, 0644); err != nil {
+		log.Fatalf("Error writing initial message history: %v", err)
 	}
 }
 
 func loadMessageHistory() []Message {
-	filePath := getConfigFilePath("history.txt")
+	filePath := getHistoryFilePath()
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		createMessageHistory()
 	}
@@ -237,7 +298,7 @@ func loadMessageHistory() []Message {
 }
 
 func saveMessageHistory(newMessages []Message) {
-	filePath := getConfigFilePath("history.txt")
+	filePath := getHistoryFilePath()
 	existingHistory := loadMessageHistory()
 	updatedHistory := append(existingHistory, newMessages...)
 
@@ -447,7 +508,7 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 		}
 
 		switch firstWord {
-		case "!clear", "!system", "!options":
+		case "!clear", "!system", "!options", "!profile":
 			handleCommands(bot, firstWord, restOfMessage, user)
 		default:
 			// Handle as a normal message if no command is detected
@@ -465,10 +526,11 @@ func (bot *Bot) handleMessage(e *irc.Event) {
 func handleCommands(bot *Bot, command, query, user string) {
 	switch command {
 	case "!clear":
-		err := os.Remove(getConfigFilePath("history.txt"))
-		if err != nil {
+		historyFilePath := getHistoryFilePath()
+		if _, err := os.Stat(historyFilePath); os.IsNotExist(err) {
 			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: I can't clear my recent memory. It may already be empty.", user))
 		} else {
+			createMessageHistory()
 			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: My recent memory has been cleared.", user))
 		}
 	case "!system":
@@ -476,6 +538,7 @@ func handleCommands(bot *Bot, command, query, user string) {
 		saveMessageHistory([]Message{newSystemMessage})
 		bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Specified system prompt will be attached to the next message.", user))
 	case "!options":
+		// Todo - Make default when blank is passed
 		optionsFile := fmt.Sprintf("options.%s.json", query)
 		newOptions, err := loadOptions(optionsFile)
 		if err != nil {
@@ -484,6 +547,8 @@ func handleCommands(bot *Bot, command, query, user string) {
 			bot.Options = newOptions
 			bot.IRCConnection.Privmsg(bot.Config.Channel, fmt.Sprintf("%s: Options loaded successfully from '%s'.", user, optionsFile))
 		}
+	case "!profile":
+		loadProfile(bot, query, user)
 	}
 	bot.IsAvailable = true
 }
