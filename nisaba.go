@@ -330,6 +330,9 @@ func saveMessageHistory(newMessages []Message) {
 }
 
 func (bot *Bot) callAPI(query string) string {
+	bot.IsAvailable = false
+	defer func() { bot.IsAvailable = true }()
+
 	var responseContent string
 	var payload map[string]interface{}
 
@@ -453,7 +456,7 @@ func (bot *Bot) callAPI(query string) string {
 	return responseContent
 }
 
-func handleCommands(bot *Bot, command, query, user string, sendMessage func(channel, message string)) {
+func handleCommands(bot *Bot, command, query, user string) {
 	switch command {
 	case "!clear":
 		historyFilePath := getHistoryFilePath()

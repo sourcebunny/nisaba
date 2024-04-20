@@ -44,7 +44,7 @@ func NewIRCBot(bot *Bot) *IRCBot {
 }
 
 func (ircBot *IRCBot) handleMessage(e *irc.Event) {
-	if blockedUsers[e.Nick] {
+	if !ircBot.IsAvailable || blockedUsers[e.Nick] {
 		return
 	}
 
@@ -55,7 +55,7 @@ func (ircBot *IRCBot) handleMessage(e *irc.Event) {
 		user := e.Nick
 		entireMessage := matches[1]
 		if strings.HasPrefix(entireMessage, "!") {
-			handleCommands(ircBot.Bot, strings.Fields(entireMessage)[0], strings.Join(strings.Fields(entireMessage)[1:], " "), user, ircBot.sendIRCMessage)
+			handleCommands(ircBot.Bot, strings.Fields(entireMessage)[0], strings.Join(strings.Fields(entireMessage)[1:], " "), user)
 		} else {
 			ircBot.processMessage(user, entireMessage)
 		}
