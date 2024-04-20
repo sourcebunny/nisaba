@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -329,6 +330,77 @@ func saveMessageHistory(newMessages []Message) {
 	}
 }
 
+func saveHistoryArchive(index int) (int, error) {
+	basePath := getHistoryFilePath()
+
+	baseDir, baseName := filepath.Split(basePath)
+	extension := filepath.Ext(baseName)
+	baseName = baseName[:len(baseName)-len(extension)]
+
+	if index == 0 {
+		// Find the highest existing file and increment by one
+		for i := 9999; i >= 1; i-- {
+			historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, i, extension)
+			if _, err := os.Stat(historyArchivePath); !os.IsNotExist(err) {
+				index = i + 1
+				break
+			}
+		}
+		if index == 0 {
+			index = 1
+		}
+		if index > 9999 {
+			return 0, fmt.Errorf("maximum history file index reached")
+		}
+	} else if index < 1 || index > 9999 {
+		return 0, fmt.Errorf("index out of range")
+	}
+
+	historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, index, extension)
+
+	content, err := ioutil.ReadFile(basePath)
+	if err != nil {
+		return index, err
+	}
+
+	err = ioutil.WriteFile(historyArchivePath, content, 0644)
+	return index, err
+}
+
+func loadHistoryArchive(index int) (int, error) {
+	basePath := getHistoryFilePath()
+
+	baseDir, baseName := filepath.Split(basePath)
+	extension := filepath.Ext(baseName)
+	baseName = baseName[:len(baseName)-len(extension)]
+
+	if index == 0 {
+		// Find the highest existing file
+		for i := 9999; i >= 1; i-- {
+			historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, i, extension)
+			if _, err := os.Stat(historyArchivePath); !os.IsNotExist(err) {
+				index = i
+				break
+			}
+		}
+		if index == 0 {
+			return 0, fmt.Errorf("no history file found to load")
+		}
+	} else if index < 1 || index > 9999 {
+		return 0, fmt.Errorf("index out of range")
+	}
+
+	historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, index, extension)
+
+	content, err := ioutil.ReadFile(historyArchivePath)
+	if err != nil {
+		return index, err
+	}
+
+	err = ioutil.WriteFile(basePath, content, 0644)
+	return index, err
+}
+
 func (bot *Bot) callAPI(query string) string {
 	bot.IsAvailable = false
 	defer func() { bot.IsAvailable = true }()
@@ -481,6 +553,50 @@ func handleCommands(bot *Bot, command, query, user string) {
 		}
 	case "!profile":
 		loadProfile(bot, query, user)
+	case "!save":
+		index := 0
+		autoSelect := false
+		if query == "" || query == "0" {
+			autoSelect = true
+		} else {
+			var err error
+			index, err = strconv.Atoi(query)
+			if err != nil || index < 1 || index > 9999 {
+				sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Invalid index provided. Use a number between 1 and 9999, or zero for auto-selection.", user))
+				return
+			}
+		}
+		idxUsed, err := saveHistoryArchive(index)
+		if err != nil {
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Error saving history: %s", user, err))
+		} else {
+			if autoSelect {
+				index = idxUsed
+			}
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: History successfully saved as history.%d.txt", user, index))
+		}
+	case "!load":
+		index := 0
+		autoSelect := false
+		if query == "" || query == "0" {
+			autoSelect = true
+		} else {
+			var err error
+			index, err = strconv.Atoi(query)
+			if err != nil || index < 1 || index > 9999 {
+				sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Invalid index provided. Use a number between 1 and 9999, or zero for auto-selection.", user))
+				return
+			}
+		}
+		idxUsed, err := loadHistoryArchive(index)
+		if err != nil {
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Error loading history: %s", user, err))
+		} else {
+			if autoSelect {
+				index = idxUsed
+			}
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: History successfully loaded from history.%d.txt", user, index))
+		}
 	}
 }
 
@@ -494,7 +610,6 @@ func splitMessage(response string, maxSize int) []string {
 	normalizedResponse := re.ReplaceAllString(response, "\n")
 
 	for _, runeValue := range normalizedResponse {
-		// Check if adding this rune would exceed the size or it's a newline character
 		if currentSize+len(string(runeValue)) > maxSize || runeValue == '\n' {
 			if currentPart.Len() > 0 {
 				parts = append(parts, currentPart.String())
@@ -512,7 +627,6 @@ func splitMessage(response string, maxSize int) []string {
 		}
 	}
 
-	// Append the last part if there's any content left in the buffer
 	if currentPart.Len() > 0 {
 		parts = append(parts, currentPart.String())
 	}
