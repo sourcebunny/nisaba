@@ -15,7 +15,7 @@ echo "Do you want to download the llamafile binary required for the API endpoint
 read -r download_llama
 case "$download_llama" in
     [Yy]|[Yy][Ee][Ss])
-        download_file "https://github.com/Mozilla-Ocho/llamafile/releases/download/0.7.1/llamafile-0.7.1" "llamafile"
+        download_file "https://github.com/Mozilla-Ocho/llamafile/releases/download/0.8.1/llamafile-0.8.1" "llamafile"
         ;;
     [Nn]|[Nn][Oo])
         echo
