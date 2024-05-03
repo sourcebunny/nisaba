@@ -56,9 +56,15 @@ Optional parameters file designed to adjust llamafile's behavior in the request 
 
 ## `systemprompt.txt`
 
-Contains the system prompt for Nisaba sent to the llamafile endpoint in "chat" mode.
+Contains the system prompt for Nisaba initially sent to the llamafile endpoint with the first message in "chat" mode.
 
-This file sets the initial conversational tone or instructions.
+The initial system message sets the conversational tone or instructions for the conversation with the assistant.
+
+## `reminderprompt.txt`
+
+Contains the system prompt for Nisaba sent to the llamafile endpoint with every new message in "chat" mode.
+
+This system message reinforces the ongoing conversational tone or instructions.
 
 ## `blocklist.txt`
 
