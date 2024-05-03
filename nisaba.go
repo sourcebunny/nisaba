@@ -332,71 +332,61 @@ func saveMessageHistory(newMessages []Message) {
 
 func saveHistoryArchive(index int) (int, error) {
 	basePath := getHistoryFilePath()
-
 	baseDir, baseName := filepath.Split(basePath)
 	extension := filepath.Ext(baseName)
 	baseName = baseName[:len(baseName)-len(extension)]
 
-	if index == 0 {
-		// Find the highest existing file and increment by one
-		for i := 9999; i >= 1; i-- {
-			historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, i, extension)
-			if _, err := os.Stat(historyArchivePath); !os.IsNotExist(err) {
-				index = i + 1
+	if index <= 0 {
+		index = 1
+		for {
+			historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, index, extension)
+			if _, err := os.Stat(historyArchivePath); os.IsNotExist(err) {
 				break
 			}
+			index++
 		}
-		if index == 0 {
-			index = 1
-		}
-		if index > 9999 {
-			return 0, fmt.Errorf("maximum history file index reached")
-		}
-	} else if index < 1 || index > 9999 {
-		return 0, fmt.Errorf("index out of range")
+	}
+
+	if index < 1 || index > 9999 {
+		return 0, fmt.Errorf("index out of valid range")
 	}
 
 	historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, index, extension)
-
 	content, err := ioutil.ReadFile(basePath)
 	if err != nil {
 		return index, err
 	}
-
 	err = ioutil.WriteFile(historyArchivePath, content, 0644)
 	return index, err
 }
 
 func loadHistoryArchive(index int) (int, error) {
 	basePath := getHistoryFilePath()
-
 	baseDir, baseName := filepath.Split(basePath)
 	extension := filepath.Ext(baseName)
 	baseName = baseName[:len(baseName)-len(extension)]
 
-	if index == 0 {
-		// Find the highest existing file
-		for i := 9999; i >= 1; i-- {
+	if index <= 0 {
+		lastAvailableIndex := 0
+		for i := 1; i <= 9999; i++ {
 			historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, i, extension)
-			if _, err := os.Stat(historyArchivePath); !os.IsNotExist(err) {
-				index = i
+			if _, err := os.Stat(historyArchivePath); err != nil {
 				break
 			}
+			lastAvailableIndex = i
 		}
-		if index == 0 {
-			return 0, fmt.Errorf("no history file found to load")
-		}
-	} else if index < 1 || index > 9999 {
-		return 0, fmt.Errorf("index out of range")
+		index = lastAvailableIndex
+	}
+
+	if index < 1 || index > 9999 {
+		return 0, fmt.Errorf("index out of valid range")
 	}
 
 	historyArchivePath := fmt.Sprintf("%s%s.%d%s", baseDir, baseName, index, extension)
-
 	content, err := ioutil.ReadFile(historyArchivePath)
 	if err != nil {
 		return index, err
 	}
-
 	err = ioutil.WriteFile(basePath, content, 0644)
 	return index, err
 }
@@ -554,48 +544,26 @@ func handleCommands(bot *Bot, command, query, user string) {
 	case "!profile":
 		loadProfile(bot, query, user)
 	case "!save":
-		index := 0
-		autoSelect := false
-		if query == "" || query == "0" {
-			autoSelect = true
-		} else {
-			var err error
-			index, err = strconv.Atoi(query)
-			if err != nil || index < 1 || index > 9999 {
-				sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Invalid index provided. Use a number between 1 and 9999, or zero for auto-selection.", user))
-				return
-			}
+		index, err := strconv.Atoi(query)
+		if err != nil {
+			index = 0
 		}
 		idxUsed, err := saveHistoryArchive(index)
 		if err != nil {
 			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Error saving history: %s", user, err))
 		} else {
-			if autoSelect {
-				index = idxUsed
-			}
-			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: History successfully saved as history.%d.txt", user, index))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: History successfully saved as history.%d.txt", user, idxUsed))
 		}
 	case "!load":
-		index := 0
-		autoSelect := false
-		if query == "" || query == "0" {
-			autoSelect = true
-		} else {
-			var err error
-			index, err = strconv.Atoi(query)
-			if err != nil || index < 1 || index > 9999 {
-				sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Invalid index provided. Use a number between 1 and 9999, or zero for auto-selection.", user))
-				return
-			}
+		index, err := strconv.Atoi(query)
+		if err != nil {
+			index = 0
 		}
 		idxUsed, err := loadHistoryArchive(index)
 		if err != nil {
 			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: Error loading history: %s", user, err))
 		} else {
-			if autoSelect {
-				index = idxUsed
-			}
-			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: History successfully loaded from history.%d.txt", user, index))
+			sendMessage(bot.Config.Channel, fmt.Sprintf("%s: History successfully loaded from history.%d.txt", user, idxUsed))
 		}
 	}
 }
