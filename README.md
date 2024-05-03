@@ -35,8 +35,6 @@ These are some features that are currently planned for Nisaba.
 - Default responses sent to users will be able to be customized.
   - For example: `I will think about that and be back with you shortly.`
   - Some default responses will be able to be toggled.
-- Conversations will be able to be saved and loaded at a later time.
-  - This will likely be in the form of `!save` and `!load` commands.
 - Support for other chat platforms, such as Discord, will eventually be added.
   - For now, focus is being put on making things work properly within IRC.
 
@@ -279,6 +277,14 @@ These commands should be prefixed with the bot's name, optionally followed by a 
   - `Nisaba, !options precise`
 - **!system [message]**: Attaches a system prompt to the next message that Nisaba sends to the llamafile endpoint, affecting how responses are generated.
   - `Nisaba, !system You will respond using 100 words or less.`
+- **!profile [path]**: Sets a custom config directory, which should be a subfolder within a folder named `profiles` in the binary's path.
+  - For example, you can place a `systemprompt.txt` and `options.json` file into a `/profiles/test` folder.
+  - `Nisaba, !profile test`
+  - To return to the default config directory, simply use `!profile` with no arguments.
+- **!save [number]**: Creates a save file which is a copy of the current conversation history, optionally with a specified numerical value.
+  - `Nisaba, !save`
+- **!load [number]**: Overwrites the current conversation history with a saved history file, optionally with a specified numerical value.
+  - `Nisaba, !load`
 
 </details>
 
