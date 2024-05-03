@@ -11,7 +11,7 @@ set /p download_llama=
 if /I "!download_llama!"=="y" (
     echo.
     echo Downloading llamafile...
-    powershell -Command "(New-Object Net.WebClient).DownloadFile('https://github.com/Mozilla-Ocho/llamafile/releases/download/0.7.1/llamafile-0.7.1', 'llamafile')"
+    powershell -Command "(New-Object Net.WebClient).DownloadFile('https://github.com/Mozilla-Ocho/llamafile/releases/download/0.8.1/llamafile-0.8.1', 'llamafile')"
     rename llamafile llamafile.exe
 ) else if /I "!download_llama!"=="n" (
     echo.
